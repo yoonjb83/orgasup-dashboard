@@ -23,7 +23,9 @@
         <!-- Login Form -->
         <div id="loginForm" class="auth-card">
             <div class="auth-logo">
-                <div class="logo-icon" style="width:24px; height:24px"><i data-lucide="leaf" style="width:16px"></i>
+                <div class="logo-icon"
+                    style="width:24px; height:24px; display: flex; align-items: center; justify-content: center;">
+                    <img src="logo.png" style="width:24px; height:24px; object-fit: contain;">
                 </div>
                 오가숲
             </div>
@@ -48,7 +50,9 @@
         <!-- Signup Form -->
         <div id="signupForm" class="auth-card hidden">
             <div class="auth-logo">
-                <div class="logo-icon" style="width:24px; height:24px"><i data-lucide="leaf" style="width:16px"></i>
+                <div class="logo-icon"
+                    style="width:24px; height:24px; display: flex; align-items: center; justify-content: center;">
+                    <img src="logo.png" style="width:24px; height:24px; object-fit: contain;">
                 </div>
                 오가숲 회원가입
             </div>
@@ -88,7 +92,7 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo" onclick="switchMenu('dashboard')" style="cursor: pointer;">
-                <div class="logo-icon"><i data-lucide="leaf"></i></div>
+                <div class="logo-icon"><img src="logo.png" style="width:32px; height:32px; object-fit: contain;"></div>
                 오가숲
             </div>
 
@@ -505,14 +509,7 @@
                         </div>
                     </div>
 
-                    <div class="card" style="margin-top:24px; border-color:#9f1239;">
-                        <div class="card-header">
-                            <h2 class="card-title" style="color:#fb7185">일괄 데이터 초기화</h2>
-                        </div>
-                        <p style="color:var(--text-muted); margin-bottom:16px;">모든 로컬 데이터를 초기화하고 1~3월 구글시트 데모 데이터로
-                            복구합니다.</p>
-                        <button class="btn btn-danger" onclick="resetAppData()">시스템 데이터 초기화</button>
-                    </div>
+
                 </section>
 
             </div>

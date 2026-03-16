@@ -150,12 +150,9 @@ body {
 .logo-icon {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
 }
 
 .user-profile {
