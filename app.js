@@ -405,19 +405,23 @@ async function migrateLocalDataToCloud() {
 function getFilteredData(dataArray) {
     if (!dataArray) return [];
     let raw = Array.isArray(dataArray) ? dataArray : Object.values(dataArray);
-    if (currentGlobalMonth !== 'all') {
-        // '2026-03' 과 '2026-3' 모두 대응 가능하도록 -03 이나 -3 둘 다 체크
-        const [year, month] = currentGlobalMonth.split('-');
-        const shortMonth = Number(month).toString();
-        const fullPrefix = `${year}-${month.padStart(2, '0')}`;
-        const shortPrefix = `${year}-${shortMonth}`;
+    if (currentGlobalMonth === 'all') return raw.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        raw = raw.filter(d => {
-            if (!d.date) return false;
-            return d.date.startsWith(fullPrefix) || d.date.startsWith(shortPrefix);
-        });
-    }
-    return raw.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const [targetYear, targetMonth] = currentGlobalMonth.split('-');
+    const tY = targetYear; // "2026"
+    const tM = parseInt(targetMonth); // 3
+
+    // 타겟 문자열 후보: "202603", "20263"
+    const targetLong = tY + targetMonth.padStart(2, '0');
+    const targetShort = tY + tM;
+
+    return raw.filter(d => {
+        if (!d.date) return false;
+        // 모든 구분자(., - 등)를 제거하고 숫자만 추출
+        const dStr = String(d.date).replace(/[^0-9]/g, '');
+        // 20260301 형태이거나 202631 형태일 때 앞부분 일치 여부 확인
+        return dStr.startsWith(targetLong) || dStr.startsWith(targetShort);
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
 const formatCurrency = (amount) => amount ? amount.toLocaleString('ko-KR') + "원" : "0원";
@@ -604,80 +608,139 @@ function handleMonthChange(val) {
 let globalChart, chartOnline, chartOffline;
 
 function renderDashboard() {
-    // Collect filtered data for current month KPIs
-    const fOnline = getFilteredData(getDetails('online'));
-    const fOffline = [...getFilteredData(getDetails('ipumgo')), ...getFilteredData(getDetails('neoart')), ...getFilteredData(getDetails('ogasup'))];
-    allOnline.forEach(d => {
-        if (d.type !== '판매') return;
-        const month = d.date.substring(0, 7);
-        monthlyOnline[month] = (monthlyOnline[month] || 0) + (d.price || 0);
-        trendLabelsSet.add(month);
+    // 1. 모든 개별 데이터 장부 확보
+    const onlineRaw = getDetails('online') || [];
+    const ipumgoRaw = getDetails('ipumgo') || [];
+    const neoartRaw = getDetails('neoart') || [];
+    const ogasupRaw = getDetails('ogasup') || [];
+
+    // 2. 현재 선택된 월(currentGlobalMonth) 필터링 (KPI용)
+    const fOnline = getFilteredData(onlineRaw);
+    const fIpumgo = getFilteredData(ipumgoRaw);
+    const fNeoart = getFilteredData(neoartRaw);
+    const fOgasup = getFilteredData(ogasupRaw);
+
+    const fOffline = [...fIpumgo, ...fNeoart, ...fOgasup];
+
+    let tOnline = 0, tOffline = 0;
+    let smartstore = 0, coupang = 0, mall = 0;
+    let supportAmt = 0, supportQty = 0;
+    let saleAmt = 0, saleQty = 0;
+
+    const toNum = (val) => {
+        if (val === null || val === undefined || val === '') return 0;
+        // 콤마(,)가 포함된 문자열일 경우 제거 후 숫자로 변환
+        const n = Number(String(val).replace(/,/g, ''));
+        return isNaN(n) ? 0 : n;
+    };
+
+    // 온라인 매출 상세 합산 (KPI용)
+    fOnline.forEach(d => {
+        const amt = toNum(d.price);
+        tOnline += amt;
+        const branch = (d.branch || '').toLowerCase();
+        if (branch.includes('스마트') || branch.includes('naver')) smartstore += amt;
+        else if (branch.includes('쿠팡') || branch.includes('coupang')) coupang += amt;
+        else mall += amt;
     });
 
-    allOffline.forEach(d => {
-        if (d.type !== '판매') return;
-        const month = d.date.substring(0, 7);
-        monthlyOffline[month] = (monthlyOffline[month] || 0) + (d.price || 0);
-        trendLabelsSet.add(month);
+    // 오프라인(아이품고, 네오아트, 오가숲) 상세 합산 (KPI용)
+    fOffline.forEach(d => {
+        const amt = toNum(d.price);
+        const qty = toNum(d.qty);
+        if (d.type === '지원') {
+            supportAmt += amt;
+            supportQty += qty;
+        } else {
+            saleAmt += amt;
+            saleQty += qty;
+            tOffline += amt;
+        }
     });
 
-    const subTitle = document.getElementById('dashboard-date-sub');
-    if (currentGlobalMonth === 'all') subTitle.textContent = "전체 기간(1~3월) 차트 및 요약 현황입니다.";
-    else subTitle.textContent = `${currentGlobalMonth.split('-')[0]}년 ${parseInt(currentGlobalMonth.split('-')[1])}월 차트 및 요약 현황입니다.`;
+    // 3. UI 갱신 (상단 카드)
+    document.getElementById('kpi-total').textContent = formatCurrency(tOnline + tOffline);
+    document.getElementById('kpi-online').textContent = formatCurrency(tOnline);
+    document.getElementById('kpi-offline').textContent = formatCurrency(tOffline);
+    document.getElementById('kpi-online-detail').textContent = `스토어: ${formatCurrency(smartstore)} / 쿠팡: ${formatCurrency(coupang)} / 자사몰: ${formatCurrency(mall)}`;
+    document.getElementById('kpi-support').textContent = formatCurrency(supportAmt);
+    document.getElementById('kpi-support-qty').textContent = `지원 수량: ${supportQty.toLocaleString()}개`;
+    document.getElementById('kpi-sales-detail').textContent = formatCurrency(saleAmt);
+    document.getElementById('kpi-sales-qty').textContent = `판매 수량: ${saleQty.toLocaleString()}개`;
 
-    const commonScale = { x: { grid: { display: false } }, y: { beginAtZero: true } };
+    // 4. 차트용 데이터 계산 (전체 기간 트렌드)
+    const trendMonthly = {};
+    const trendLabelsSet = new Set();
 
-    // 1. Online vs Offline Doughnut Chart
-    if (chartOnline) chartOnline.destroy();
-    chartOnline = new Chart(document.getElementById('chartOnline').getContext('2d'), {
-        type: 'doughnut',
-        data: {
-            labels: ['온라인 통합 매출', '오프라인 통합 매출'],
-            datasets: [{
-                data: [tOnline, tOffline],
-                backgroundColor: ['#f97316', '#1e3a8a'],
-                borderWidth: 0
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
+    const processTrend = (arr, key) => {
+        arr.forEach(d => {
+            if (d.type === '판매' || !d.type) {
+                const dateRaw = String(d.date || '').replace(/[^0-9]/g, '');
+                if (dateRaw.length >= 6) {
+                    const m = dateRaw.substring(0, 4) + '-' + dateRaw.substring(4, 6);
+                    if (!trendMonthly[m]) trendMonthly[m] = { on: 0, off: 0 };
+                    trendMonthly[m][key] += toNum(d.price);
+                    trendLabelsSet.add(m);
+                }
+            }
+        });
+    };
+    processTrend(onlineRaw, 'on');
+    processTrend([...ipumgoRaw, ...neoartRaw, ...ogasupRaw], 'off');
 
-    // 2. Monthly Trend Line Chart (Total Revenue)
     const trendLabels = Array.from(trendLabelsSet).sort();
-    const trendDataOnline = trendLabels.map(m => monthlyOnline[m] || 0);
-    const trendDataOffline = trendLabels.map(m => monthlyOffline[m] || 0);
 
-    if (chartOffline) chartOffline.destroy(); // Reuse var for simplicity or create new if we added to index.html 
-    // We'll map the second canvas 'chartOffline' to the monthly trend for now, but wait, let's look at index.html replacing.
-    if (globalChart) globalChart.destroy();
-    if (document.getElementById('mainSalesChart')) {
-        globalChart = new Chart(document.getElementById('mainSalesChart').getContext('2d'), {
+    // 서브타이틀 갱신
+    const subTitle = document.getElementById('dashboard-date-sub');
+    if (subTitle) {
+        if (currentGlobalMonth === 'all') subTitle.textContent = "전체 기간 차트 및 요약 현황입니다.";
+        else subTitle.textContent = `${currentGlobalMonth.split('-')[0]}년 ${parseInt(currentGlobalMonth.split('-')[1])}월 차트 및 요약 현황입니다.`;
+    }
+
+    // 도넛 차트
+    if (chartOnline) chartOnline.destroy();
+    const ctxOn = document.getElementById('chartOnline')?.getContext('2d');
+    if (ctxOn) {
+        chartOnline = new Chart(ctxOn, {
+            type: 'doughnut',
+            data: {
+                labels: ['온라인 매출', '오프라인 매출'],
+                datasets: [{
+                    data: [tOnline, tOffline],
+                    backgroundColor: ['#f97316', '#1e3a8a'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // 트렌드 차트
+    if (chartOffline) chartOffline.destroy();
+    const ctxOff = document.getElementById('chartOffline')?.getContext('2d');
+    if (ctxOff) {
+        chartOffline = new Chart(ctxOff, {
             type: 'line',
             data: {
                 labels: trendLabels,
                 datasets: [
-                    {
-                        label: '온라인 매출',
-                        data: trendDataOnline,
-                        borderColor: '#f97316',
-                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    },
-                    {
-                        label: '오프라인 매출',
-                        data: trendDataOffline,
-                        borderColor: '#1e3a8a',
-                        backgroundColor: 'rgba(30, 58, 138, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }
+                    { label: '온라인 매출', data: trendLabels.map(l => trendMonthly[l].on), borderColor: '#f97316', tension: 0.3, fill: false },
+                    { label: '오프라인 매출', data: trendLabels.map(l => trendMonthly[l].off), borderColor: '#1e3a8a', tension: 0.3, fill: false }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, scales: commonScale }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
         });
     }
 
+    renderDashboardInventory();
+}
+
+function renderDashboardInventory() {
+    // 5. 재고 현황 갱신
     const inv = getInventory();
     document.getElementById('dashboard-inv-list').innerHTML = `
         <div class="inventory-item"><div><div class="inv-name">입오버 4P</div></div><div class="inv-total" style="color:var(--primary-dark)">${inv.panties_4p.toLocaleString()}개</div></div>
