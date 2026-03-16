@@ -715,23 +715,43 @@ function renderDashboard() {
         });
     }
 
-    // 트렌드 차트
-    if (chartOffline) chartOffline.destroy();
-    const ctxOff = document.getElementById('chartOffline')?.getContext('2d');
-    if (ctxOff) {
-        chartOffline = new Chart(ctxOff, {
+    // 트렌드 차트 (월별 통합 매출 추이)
+    if (globalChart) globalChart.destroy();
+    const ctxTrend = document.getElementById('mainSalesChart')?.getContext('2d');
+    if (ctxTrend) {
+        globalChart = new Chart(ctxTrend, {
             type: 'line',
             data: {
                 labels: trendLabels,
                 datasets: [
-                    { label: '온라인 매출', data: trendLabels.map(l => trendMonthly[l].on), borderColor: '#f97316', tension: 0.3, fill: false },
-                    { label: '오프라인 매출', data: trendLabels.map(l => trendMonthly[l].off), borderColor: '#1e3a8a', tension: 0.3, fill: false }
+                    {
+                        label: '온라인 매출',
+                        data: trendLabels.map(l => (trendMonthly[l] ? trendMonthly[l].on : 0)),
+                        borderColor: '#f97316',
+                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: '오프라인 매출',
+                        data: trendLabels.map(l => (trendMonthly[l] ? trendMonthly[l].off : 0)),
+                        borderColor: '#1e3a8a',
+                        backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true } }
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                    x: { grid: { display: false } }
+                },
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
             }
         });
     }
