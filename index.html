@@ -121,7 +121,7 @@
                     <i data-lucide="monitor"
                         style="display:inline-block; vertical-align:middle; width:20px; margin-right:8px;"></i> 오가숲(직접)
                 </li>
-                <li class="nav-item" onclick="switchMenu('inventory')">
+                <li class="nav-item" onclick="switchMenu('inventory')" id="menuInventory">
                     <i data-lucide="boxes"
                         style="display:inline-block; vertical-align:middle; width:20px; margin-right:8px;"></i> 재고 현황
                 </li>
@@ -298,8 +298,8 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div
-                            style="padding: 16px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 8px;">
+                        <div class="header-actions"
+                            style="padding: 16px; border-top: 1px solid var(--border-light); justify-content: flex-end; gap: 8px;">
                             <button class="btn btn-primary" onclick="addDetailRow('online')"><i data-lucide="plus"
                                     style="width:16px; margin-right:4px;"></i> 행 추가</button>
                             <button class="btn btn-primary" onclick="saveCurrentEntrySheet('online')"><i
@@ -343,8 +343,8 @@
                             </thead>
                             <tbody id="sheet-ipumgo-tbody"></tbody>
                         </table>
-                        <div
-                            style="padding: 16px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 8px;">
+                        <div class="header-actions"
+                            style="padding: 16px; border-top: 1px solid var(--border-light); justify-content: flex-end; gap: 8px;">
                             <button class="btn btn-primary" onclick="addDetailRow('ipumgo')"><i data-lucide="plus"
                                     style="width:16px; margin-right:4px;"></i> 행 추가</button>
                             <button class="btn btn-primary" onclick="saveCurrentEntrySheet('ipumgo')"><i
@@ -388,8 +388,8 @@
                             </thead>
                             <tbody id="sheet-neoart-tbody"></tbody>
                         </table>
-                        <div
-                            style="padding: 16px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 8px;">
+                        <div class="header-actions"
+                            style="padding: 16px; border-top: 1px solid var(--border-light); justify-content: flex-end; gap: 8px;">
                             <button class="btn btn-primary" onclick="addDetailRow('neoart')"><i data-lucide="plus"
                                     style="width:16px; margin-right:4px;"></i> 행 추가</button>
                             <button class="btn btn-primary" onclick="saveCurrentEntrySheet('neoart')"><i
@@ -433,8 +433,8 @@
                             </thead>
                             <tbody id="sheet-ogasup-tbody"></tbody>
                         </table>
-                        <div
-                            style="padding: 16px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 8px;">
+                        <div class="header-actions"
+                            style="padding: 16px; border-top: 1px solid var(--border-light); justify-content: flex-end; gap: 8px;">
                             <button class="btn btn-primary" onclick="addDetailRow('ogasup')"><i data-lucide="plus"
                                     style="width:16px; margin-right:4px;"></i> 행 추가</button>
                             <button class="btn btn-primary" onclick="saveCurrentEntrySheet('ogasup')"><i
@@ -467,7 +467,7 @@
                             </thead>
                             <tbody id="sheet-inventory-tbody"></tbody>
                         </table>
-                        <div
+                        <div class="header-actions"
                             style="padding: 16px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 8px;">
                             <button class="btn btn-primary" onclick="saveInventory()"><i data-lucide="save"
                                     style="width:16px; margin-right:4px;"></i> 재고 저장</button>

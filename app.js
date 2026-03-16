@@ -568,9 +568,16 @@ function enterDashboard() {
 
     document.getElementById('sidebarRole').textContent = roleText;
 
-    // Only Super Admin can see the settings menu
-    const isSuper = (user.role === 'superadmin' || user.id === 'admin');
-    document.getElementById('menuSettings').style.display = isSuper ? 'flex' : 'none';
+    // Only Super Admin    const menuSettings = document.getElementById('menuSettings');
+    const menuInventory = document.getElementById('menuInventory');
+    if (user.role === 'admin' || user.role === 'superadmin') {
+        if (menuSettings) menuSettings.style.display = 'flex'; // Changed to flex as per original
+        if (menuInventory) menuInventory.style.display = 'flex'; // Changed to flex as per original
+    } else {
+        if (menuSettings) menuSettings.style.display = 'none';
+        // Hide Inventory for normal users
+        if (menuInventory) menuInventory.style.display = 'none';
+    }
 
     switchMenu('dashboard');
     lucide.createIcons();
@@ -584,15 +591,15 @@ function switchMenu(section) {
     if (target) {
         target.classList.remove('hidden');
 
-        // Read-only logic for 'user' role members
-        const headerActions = target.querySelector('.header-actions');
-        if (headerActions) {
+        // Read-only logic for 'user' role members (Hide all .header-actions)
+        const allHeaderActions = target.querySelectorAll('.header-actions');
+        allHeaderActions.forEach(actions => {
             if (user.role === 'user' && user.id !== 'admin') {
-                headerActions.style.display = 'none'; // Hide add/save buttons
+                actions.style.display = 'none'; // Hide add/save buttons
             } else {
-                headerActions.style.display = 'flex';
+                actions.style.display = 'flex';
             }
-        }
+        });
     }
 
     if (section === 'dashboard') renderDashboard();
