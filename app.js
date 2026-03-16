@@ -17,11 +17,39 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 }
 const db = (typeof firebase !== 'undefined' && firebase.apps.length) ? firebase.database() : null;
 
-// Real-time synchronization for users (to allow cross-device login)
+// Real-time synchronization for all data
 if (db) {
     db.ref('users').on('value', (snapshot) => {
         const data = snapshot.val();
-        if (data) localStorage.setItem('ogasup_users', JSON.stringify(data));
+        if (data) {
+            const arr = Array.isArray(data) ? data : Object.values(data);
+            localStorage.setItem('ogasup_users', JSON.stringify(arr));
+            if (currentTab === 'settings') renderSettings();
+        }
+    });
+
+    db.ref('sales').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            const arr = Array.isArray(data) ? data : Object.values(data);
+            localStorage.setItem('ogasup_sales', JSON.stringify(arr));
+            // 대시보드 또는 입력 탭에 있을 때 즉시 업데이트
+            if (currentTab === 'dashboard') renderCurrentTab();
+            if (currentTab === 'entry' && currentEntryTab === 'sales') renderEntrySheet('sales');
+        }
+    });
+
+    const schemas = ['online', 'ipumgo', 'neoart', 'ogasup'];
+    schemas.forEach(s => {
+        db.ref('details/' + s).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const arr = Array.isArray(data) ? data : Object.values(data);
+                localStorage.setItem('ogasup_details_' + s, JSON.stringify(arr));
+                if (currentTab === 'dashboard') renderCurrentTab();
+                if (currentTab === 'entry' && currentEntryTab === s) renderEntrySheet(s);
+            }
+        });
     });
 }
 
@@ -37,13 +65,6 @@ function initData(force = false) {
             id: 'admin', password: '1234', name: '최고관리자', dept: '관리부', position: '대표', phone: '010-0000-0000', role: 'admin', status: 'approved'
         }];
         localStorage.setItem('ogasup_users', JSON.stringify(defaultUsers));
-    }
-
-    // If we have successfully synced from the cloud at least once,
-    // we should NEVER populate local default data again.
-    // The cloud is the ultimate source of truth.
-    if (!force && localStorage.getItem('ogasup_cloud_synced') === 'true') {
-        return;
     }
 
     // Legacy version wipe logic removed to prevent overwriting cloud sync on new domains.
@@ -281,15 +302,21 @@ async function syncAllFromCloud() {
             return false;
         }
 
-        if (cloudData.sales) localStorage.setItem('ogasup_sales', JSON.stringify(cloudData.sales));
+        // Firebase는 배열 인덱스가 불규칙하면 객체로 반환할 수 있으므로 강제로 배열로 변환
+        const toArray = (obj) => {
+            if (!obj) return [];
+            if (Array.isArray(obj)) return obj;
+            return Object.values(obj);
+        };
+
+        if (cloudData.sales) localStorage.setItem('ogasup_sales', JSON.stringify(toArray(cloudData.sales)));
         if (cloudData.users) {
-            // Keep local version for App Version so we don't infinitely reset
-            localStorage.setItem('ogasup_users', JSON.stringify(cloudData.users));
+            localStorage.setItem('ogasup_users', JSON.stringify(toArray(cloudData.users)));
         }
         if (cloudData.inventory) localStorage.setItem('ogasup_inventory', JSON.stringify(cloudData.inventory));
         if (cloudData.details) {
             for (let schema in cloudData.details) {
-                localStorage.setItem('ogasup_details_' + schema, JSON.stringify(cloudData.details[schema]));
+                localStorage.setItem('ogasup_details_' + schema, JSON.stringify(toArray(cloudData.details[schema])));
             }
         }
         // Set a flag so we know we've synced at least once
@@ -384,7 +411,7 @@ async function handleLogin(e) {
 
     if (user) {
         if (user.status !== 'approved') return alert("최고관리자의 승인을 대기 중입니다.");
-        sessionStorage.setItem('activeUser', JSON.stringify(user));
+        localStorage.setItem('activeUser', JSON.stringify(user));
         enterDashboard();
     } else {
         alert("아이디 또는 비밀번호가 일치하지 않습니다.");
@@ -427,7 +454,7 @@ async function handleSignup(e) {
 }
 
 function handleLogout() {
-    sessionStorage.removeItem('activeUser');
+    localStorage.removeItem('activeUser');
     document.getElementById('appContainer').classList.add('hidden');
     document.getElementById('authContainer').classList.remove('hidden');
 }
@@ -917,7 +944,7 @@ async function resetAppData() {
         localStorage.removeItem('ogasup_details_ogasup');
         localStorage.removeItem('ogasup_details_online');
         localStorage.removeItem('ogasup_app_version'); // Also remove version on full reset
-        sessionStorage.removeItem('activeUser');
+        localStorage.removeItem('activeUser');
 
         // Clear Firebase data
         if (db) {
@@ -949,7 +976,7 @@ window.onload = async () => {
     const filter = document.getElementById('globalMonthFilter');
     if (filter) filter.value = '2026-03';
 
-    if (sessionStorage.getItem('activeUser')) {
+    if (localStorage.getItem('activeUser')) {
         document.getElementById('authContainer').classList.add('hidden');
         document.getElementById('appContainer').classList.remove('hidden');
         enterDashboard();
