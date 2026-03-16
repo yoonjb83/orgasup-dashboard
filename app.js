@@ -271,13 +271,20 @@ function getSalesData() { return JSON.parse(localStorage.getItem('ogasup_sales')
 function getDetails(schema) { return JSON.parse(localStorage.getItem('ogasup_details_' + schema)) || []; }
 
 async function saveSales(data) {
-    localStorage.setItem('ogasup_sales', JSON.stringify(data));
-    if (db) await db.ref('sales').set(data);
+    if (db) {
+        // 서버에 먼저 저장하고, 리스너가 로컬 데이터를 갱신하게 함
+        await db.ref('sales').set(data);
+    } else {
+        localStorage.setItem('ogasup_sales', JSON.stringify(data));
+    }
 }
 
 async function saveDetails(schema, data) {
-    localStorage.setItem('ogasup_details_' + schema, JSON.stringify(data));
-    if (db) await db.ref('details/' + schema).set(data);
+    if (db) {
+        await db.ref('details/' + schema).set(data);
+    } else {
+        localStorage.setItem('ogasup_details_' + schema, JSON.stringify(data));
+    }
 }
 
 function getUsers() {
@@ -288,15 +295,21 @@ function getUsers() {
 }
 
 async function saveUsers(data) {
-    localStorage.setItem('ogasup_users', JSON.stringify(data));
-    if (db) await db.ref('users').set(data);
+    if (db) {
+        await db.ref('users').set(data);
+    } else {
+        localStorage.setItem('ogasup_users', JSON.stringify(data));
+    }
 }
 
 function getInventory() { return JSON.parse(localStorage.getItem('ogasup_inventory')) || {}; }
 
-async function saveInventoryToCloud(data) {
-    localStorage.setItem('ogasup_inventory', JSON.stringify(data));
-    if (db) await db.ref('inventory').set(data);
+async function saveInventory(data) { // Renamed from saveInventoryToCloud
+    if (db) {
+        await db.ref('inventory').set(data);
+    } else {
+        localStorage.setItem('ogasup_inventory', JSON.stringify(data));
+    }
 }
 
 async function syncAllFromCloud() {
@@ -1057,7 +1070,11 @@ window.onload = async () => {
     syncAllFromCloud().then(synced => {
         if (synced) {
             console.log("Cloud sync completed on boot.");
-            if (localStorage.getItem('activeUser')) renderDashboard(); // 데이터가 바뀌었을 수 있으므로 갱신
+            // 데이터가 완전히 동기화된 후 모든 화면 강제 재렌더링
+            if (localStorage.getItem('activeUser')) {
+                renderDashboard();
+                if (currentTab !== 'dashboard') switchMenu(currentTab);
+            }
         }
     });
 
