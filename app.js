@@ -33,9 +33,9 @@ if (db) {
         if (data) {
             const arr = Array.isArray(data) ? data : Object.values(data);
             localStorage.setItem('ogasup_sales', JSON.stringify(arr));
-            // 대시보드 또는 입력 탭에 있을 때 즉시 업데이트
-            if (currentTab === 'dashboard') renderCurrentTab();
-            if (currentTab === 'entry' && currentEntryTab === 'sales') renderEntrySheet('sales');
+            // 즉각적인 숫자 반영을 위해 호출 순서 보장
+            if (currentTab === 'dashboard') renderDashboard();
+            if (currentTab === 'entry' && currentEntryTab === 'sales') renderSpreadsheet('sales');
         }
     });
 
@@ -46,8 +46,8 @@ if (db) {
             if (data) {
                 const arr = Array.isArray(data) ? data : Object.values(data);
                 localStorage.setItem('ogasup_details_' + s, JSON.stringify(arr));
-                if (currentTab === 'dashboard') renderCurrentTab();
-                if (currentTab === 'entry' && currentEntryTab === s) renderEntrySheet(s);
+                if (currentTab === 'dashboard') renderDashboard();
+                if (currentTab === 'entry' && currentEntryTab === s) renderSpreadsheet(s);
             }
         });
     });
@@ -404,17 +404,20 @@ async function handleLogin(e) {
     const users = getUsers();
     let user = users.find(u => u.id === id && u.password === pw);
 
-    // Admin Fallback
+    // Admin Fallback (Emergency)
     if (!user && id === 'admin' && pw === '1234') {
-        user = { id: 'admin', password: '1234', name: '최고관리자', role: 'admin', status: 'approved' };
+        user = { id: 'admin', password: '1234', name: '최고관리자', role: 'superadmin', status: 'approved' };
     }
 
     if (user) {
-        if (user.status !== 'approved') return alert("최고관리자의 승인을 대기 중입니다.");
+        if (user.status !== 'approved') {
+            alert("최고관리자의 승인을 대기 중입니다. 승인 후 다시 시도해주세요.");
+            return;
+        }
         localStorage.setItem('activeUser', JSON.stringify(user));
         enterDashboard();
     } else {
-        alert("아이디 또는 비밀번호가 일치하지 않습니다.");
+        alert("아이디 또는 비밀번호가 일치하지 않습니다. (가입 승인 여부도 확인해주세요)");
     }
 }
 
@@ -1025,31 +1028,57 @@ async function resetAppData() {
 
 // Initial Boot logic
 window.onload = async () => {
+    // 1. Firebase 실시간 연결 대기 및 세션 확인
     let cloudSynced = false;
     try {
         const synced = await syncAllFromCloud();
         if (synced) cloudSynced = true;
-    } catch (e) { console.error("Cloud sync skipped", e); }
+    } catch (e) {
+        console.error("Cloud 초기 동기화 실패:", e);
+    }
 
-    // Only force init if cloud wasn't synced (new environment) or if specifically needed
-    // However, initData currently checks if local storage is empty, so it's relatively safe
-    initData(false); // Do not force wipe on boot
+    // 2. 로컬 데이터 검증 및 필요시 데모 데이터 생성 (비어있을 때만)
+    initData(false);
 
+    // 3. 만약 클라우드가 비어있다면 현재 로컬 데이터를 클라우드로 백업
     try {
-        // Only migrate local data if cloud is empty
         await migrateLocalDataToCloud();
-    } catch (e) { console.error("Migration skipped", e); }
+    } catch (e) { console.error("Cloud 백업 실패:", e); }
 
+    // 4. UI 초기화
     currentGlobalMonth = '2026-03';
     const filter = document.getElementById('globalMonthFilter');
     if (filter) filter.value = '2026-03';
 
-    if (localStorage.getItem('activeUser')) {
-        document.getElementById('authContainer').classList.add('hidden');
-        document.getElementById('appContainer').classList.remove('hidden');
-        enterDashboard();
+    // 5. 로그인 상태 확인 및 대시보드 진입
+    const savedUser = localStorage.getItem('activeUser');
+    if (savedUser) {
+        try {
+            const user = JSON.parse(savedUser);
+            // 최신 승인 상태 확인을 위해 유저 목록 다시 확인
+            const allUsers = getUsers();
+            const latestUser = allUsers.find(u => u.id === user.id);
+
+            if (latestUser && latestUser.status === 'approved') {
+                localStorage.setItem('activeUser', JSON.stringify(latestUser));
+                document.getElementById('authContainer').classList.add('hidden');
+                document.getElementById('appContainer').classList.remove('hidden');
+                enterDashboard();
+            } else if (user.id === 'admin') {
+                // admin은 항상 통과
+                document.getElementById('authContainer').classList.add('hidden');
+                document.getElementById('appContainer').classList.remove('hidden');
+                enterDashboard();
+            } else {
+                // 승인 취소되었거나 유저가 사라진 경우
+                localStorage.removeItem('activeUser');
+                renderCurrentTab();
+            }
+        } catch (e) {
+            localStorage.removeItem('activeUser');
+            renderCurrentTab();
+        }
     } else {
-        // Even if not logged in, ensure internal state is ready
         renderCurrentTab();
     }
 }
