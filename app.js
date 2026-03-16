@@ -17,6 +17,23 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 }
 const db = (typeof firebase !== 'undefined' && firebase.apps.length) ? firebase.database() : null;
 
+// Connection Status Monitor
+if (db) {
+    db.ref('.info/connected').on('value', (snap) => {
+        const dot = document.getElementById('syncDot');
+        const text = document.getElementById('syncText');
+        if (dot && text) {
+            if (snap.val() === true) {
+                dot.style.background = '#10b981'; // Green
+                text.textContent = '클라우드 연결됨';
+            } else {
+                dot.style.background = '#ef4444'; // Red
+                text.textContent = '오프라인 (로컬저장)';
+            }
+        }
+    });
+}
+
 // Real-time synchronization for all data
 let isSyncInitialized = false;
 function initRealtimeSync() {
@@ -576,44 +593,6 @@ function renderDashboard() {
     // Collect filtered data for current month KPIs
     const fOnline = getFilteredData(getDetails('online'));
     const fOffline = [...getFilteredData(getDetails('ipumgo')), ...getFilteredData(getDetails('neoart')), ...getFilteredData(getDetails('ogasup'))];
-
-    let tOnline = 0, tOffline = 0;
-
-    // For storing dynamically calculated totals instead of relying on old aggregate sheet
-    fOnline.forEach(d => { if (d.type === '판매') tOnline += d.price || 0; });
-    fOffline.forEach(d => { if (d.type === '판매') tOffline += d.price || 0; });
-
-    let tSupportAmt = 0, tSupportQty = 0;
-    let tSalesAmt = tOffline, tSalesQty = 0;
-
-    fOffline.forEach(d => {
-        if (d.type === '지원') {
-            tSupportQty += d.qty || 0;
-            tSupportAmt += d.price || 0;
-        } else if (d.type === '판매') {
-            tSalesQty += d.qty || 0;
-        }
-    });
-
-    document.getElementById('kpi-total').textContent = formatCurrency(tOnline + tOffline);
-    document.getElementById('kpi-online').textContent = formatCurrency(tOnline);
-    // Since we dynamically count, we could simplify 'kpi-online-detail' or leave it to user
-    document.getElementById('kpi-online-detail').innerHTML = `선택된 기간의 온라인 총매출입니다.`;
-    document.getElementById('kpi-offline').textContent = formatCurrency(tOffline);
-
-    document.getElementById('kpi-support').textContent = formatCurrency(tSupportAmt);
-    document.getElementById('kpi-support-qty').textContent = `지원 수량: ${tSupportQty.toLocaleString()}개`;
-    document.getElementById('kpi-sales-detail').textContent = formatCurrency(tSalesAmt);
-    document.getElementById('kpi-sales-qty').textContent = `판매 수량: ${tSalesQty.toLocaleString()}개`;
-
-    // Monthly totals for line chart
-    const allOnline = getDetails('online');
-    const allOffline = [...getDetails('ipumgo'), ...getDetails('neoart'), ...getDetails('ogasup')];
-
-    const monthlyOnline = {};
-    const monthlyOffline = {};
-    const trendLabelsSet = new Set();
-
     allOnline.forEach(d => {
         if (d.type !== '판매') return;
         const month = d.date.substring(0, 7);
