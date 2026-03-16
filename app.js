@@ -426,11 +426,31 @@ function getFilteredData(dataArray) {
 
 const formatCurrency = (amount) => amount ? amount.toLocaleString('ko-KR') + "원" : "0원";
 function unformat(val) { return String(val).replace(/,/g, ''); }
+
+function calculateRowAmount(el) {
+    const tr = el.closest('tr');
+    if (!tr) return;
+
+    const qtyInput = tr.querySelector('[data-col="qty"]');
+    const unitPriceInput = tr.querySelector('[data-col="unitPrice"]');
+    const priceInput = tr.querySelector('[data-col="price"]');
+
+    if (qtyInput && unitPriceInput && priceInput) {
+        const qty = Number(unformat(qtyInput.value)) || 0;
+        const unitPrice = Number(unformat(unitPriceInput.value)) || 0;
+        const total = qty * unitPrice;
+
+        priceInput.value = total.toLocaleString();
+    }
+}
+
 function formatNumberInput(el) {
     let val = unformat(el.value);
     if (!isNaN(val) && val !== '') {
         el.value = Number(val).toLocaleString();
     }
+    // 포맷팅 후에도 자동 계산 트리거
+    calculateRowAmount(el);
 }
 function generateId() { return Date.now() + Math.floor(Math.random() * 1000); }
 
@@ -820,7 +840,8 @@ function appendDetailRow(schema, tbody, data) {
             </select>
         </td>
         <td><select class="sheet-select" data-col="product"><option value="">선택</option>${productOptions}</select></td>
-        <td><input type="text" class="sheet-input" data-col="qty" value="${(data.qty || '').toLocaleString()}" onblur="formatNumberInput(this)"></td>
+        <td><input type="text" class="sheet-input" data-col="qty" value="${(data.qty || '').toLocaleString()}" oninput="calculateRowAmount(this)" onblur="formatNumberInput(this)"></td>
+        <td><input type="text" class="sheet-input" data-col="unitPrice" value="${(data.unitPrice || '').toLocaleString()}" oninput="calculateRowAmount(this)" onblur="formatNumberInput(this)"></td>
         <td><input type="text" class="sheet-input" data-col="price" value="${(data.price || '').toLocaleString()}" onblur="formatNumberInput(this)"></td>
         <td><input type="text" class="sheet-input" data-col="paid" value="${(data.paid || '').toLocaleString()}" onblur="formatNumberInput(this)"></td>
         <td>
