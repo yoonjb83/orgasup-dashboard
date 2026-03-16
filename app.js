@@ -378,30 +378,44 @@ async function syncAllFromCloud() {
 
 async function migrateLocalDataToCloud() {
     if (!db) return;
-    const schemas = ['online', 'ipumgo', 'neoart', 'ogasup'];
-    const sales = getSalesData();
-    const users = getUsers();
-    const inv = getInventory();
+    try {
+        const snap = await db.ref('/').once('value');
+        const cloudData = snap.val();
 
-    // Only migrate if cloud is empty (pre-emptively, or just do it once)
-    const snapshot = await db.ref('sales').once('value');
-    if (snapshot.exists()) return;
-
-    if (sales.length > 0) await db.ref('sales').set(sales);
-    if (users.length > 0) await db.ref('users').set(users);
-    if (inv && Object.keys(inv).length > 0) await db.ref('inventory').set(inv);
-
-    for (let s of schemas) {
-        const d = getDetails(s);
-        if (d.length > 0) await db.ref('details/' + s).set(d);
-    }
+        // 데이터가 아예 없는 경우에만 로컬 데이터를 서버에 통째로 백업 (웨일 데이터 서버 전송용)
+        if (!cloudData || (!cloudData.sales && !cloudData.users)) {
+            console.log("Cloud is empty. Migrating local data to cloud...");
+            const dataToPush = {
+                sales: getSalesData(),
+                users: getUsers(),
+                inventory: getInventory(),
+                details: {
+                    online: getDetails('online'),
+                    ipumgo: getDetails('ipumgo'),
+                    neoart: getDetails('neoart'),
+                    ogasup: getDetails('ogasup')
+                }
+            };
+            await db.ref('/').set(dataToPush);
+            console.log("Migration successful!");
+        }
+    } catch (e) { console.error("Migration error:", e); }
 }
 
 function getFilteredData(dataArray) {
-    let raw = dataArray;
+    if (!dataArray) return [];
+    let raw = Array.isArray(dataArray) ? dataArray : Object.values(dataArray);
     if (currentGlobalMonth !== 'all') {
-        const prefix = currentGlobalMonth;
-        raw = raw.filter(d => d.date.startsWith(prefix));
+        // '2026-03' 과 '2026-3' 모두 대응 가능하도록 -03 이나 -3 둘 다 체크
+        const [year, month] = currentGlobalMonth.split('-');
+        const shortMonth = Number(month).toString();
+        const fullPrefix = `${year}-${month.padStart(2, '0')}`;
+        const shortPrefix = `${year}-${shortMonth}`;
+
+        raw = raw.filter(d => {
+            if (!d.date) return false;
+            return d.date.startsWith(fullPrefix) || d.date.startsWith(shortPrefix);
+        });
     }
     return raw.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
