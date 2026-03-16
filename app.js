@@ -18,7 +18,11 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 const db = (typeof firebase !== 'undefined' && firebase.apps.length) ? firebase.database() : null;
 
 // Real-time synchronization for all data
-if (db) {
+let isSyncInitialized = false;
+function initRealtimeSync() {
+    if (!db || isSyncInitialized) return;
+    isSyncInitialized = true;
+
     db.ref('users').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -33,7 +37,6 @@ if (db) {
         if (data) {
             const arr = Array.isArray(data) ? data : Object.values(data);
             localStorage.setItem('ogasup_sales', JSON.stringify(arr));
-            // 즉각적인 숫자 반영을 위해 호출 순서 보장
             if (currentTab === 'dashboard') renderDashboard();
             if (currentTab === 'entry' && currentEntryTab === 'sales') renderSpreadsheet('sales');
         }
@@ -1028,57 +1031,46 @@ async function resetAppData() {
 
 // Initial Boot logic
 window.onload = async () => {
-    // 1. Firebase 실시간 연결 대기 및 세션 확인
-    let cloudSynced = false;
+    // 1. 실시간 동기화 리스너 먼저 가동
+    initRealtimeSync();
+
+    // 2. 초기 데이터 원격 동기화 (Promise로 확실히 기다림)
     try {
-        const synced = await syncAllFromCloud();
-        if (synced) cloudSynced = true;
+        await syncAllFromCloud();
     } catch (e) {
         console.error("Cloud 초기 동기화 실패:", e);
     }
 
-    // 2. 로컬 데이터 검증 및 필요시 데모 데이터 생성 (비어있을 때만)
+    // 3. 로컬 저장소 확인 및 데모 데이터 보충 (비어있을 경우에만)
     initData(false);
 
-    // 3. 만약 클라우드가 비어있다면 현재 로컬 데이터를 클라우드로 백업
+    // 4. 클라우드 백업 체크
     try {
         await migrateLocalDataToCloud();
     } catch (e) { console.error("Cloud 백업 실패:", e); }
 
-    // 4. UI 초기화
+    // 5. 기본 날짜 설정
     currentGlobalMonth = '2026-03';
     const filter = document.getElementById('globalMonthFilter');
     if (filter) filter.value = '2026-03';
 
-    // 5. 로그인 상태 확인 및 대시보드 진입
+    // 6. 로그인 세션 및 승인 상태 최종 검증
     const savedUser = localStorage.getItem('activeUser');
     if (savedUser) {
-        try {
-            const user = JSON.parse(savedUser);
-            // 최신 승인 상태 확인을 위해 유저 목록 다시 확인
-            const allUsers = getUsers();
-            const latestUser = allUsers.find(u => u.id === user.id);
+        const user = JSON.parse(savedUser);
+        const users = getUsers();
+        const latest = users.find(u => u.id === user.id);
 
-            if (latestUser && latestUser.status === 'approved') {
-                localStorage.setItem('activeUser', JSON.stringify(latestUser));
-                document.getElementById('authContainer').classList.add('hidden');
-                document.getElementById('appContainer').classList.remove('hidden');
-                enterDashboard();
-            } else if (user.id === 'admin') {
-                // admin은 항상 통과
-                document.getElementById('authContainer').classList.add('hidden');
-                document.getElementById('appContainer').classList.remove('hidden');
-                enterDashboard();
-            } else {
-                // 승인 취소되었거나 유저가 사라진 경우
-                localStorage.removeItem('activeUser');
-                renderCurrentTab();
-            }
-        } catch (e) {
+        if (user.id === 'admin' || (latest && latest.status === 'approved')) {
+            if (latest) localStorage.setItem('activeUser', JSON.stringify(latest));
+            document.getElementById('authContainer').classList.add('hidden');
+            document.getElementById('appContainer').classList.remove('hidden');
+            enterDashboard();
+        } else {
             localStorage.removeItem('activeUser');
-            renderCurrentTab();
+            switchMenu('dashboard');
         }
     } else {
-        renderCurrentTab();
+        switchMenu('dashboard');
     }
 }
