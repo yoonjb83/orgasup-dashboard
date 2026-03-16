@@ -462,14 +462,23 @@ function handleLogout() {
 
 // ========== 3. Navigation ==========
 function enterDashboard() {
-    const user = JSON.parse(sessionStorage.getItem('activeUser'));
+    const user = JSON.parse(localStorage.getItem('activeUser'));
     document.getElementById('authContainer').classList.add('hidden');
     document.getElementById('appContainer').classList.remove('hidden');
 
     document.getElementById('sidebarAvatar').textContent = user.name.charAt(0);
     document.getElementById('sidebarName').textContent = user.name;
-    document.getElementById('sidebarRole').textContent = user.role === 'admin' ? '최고관리자' : (user.dept + " " + user.position);
-    document.getElementById('menuSettings').style.display = user.role === 'admin' ? 'flex' : 'none';
+
+    // Role display mapping
+    let roleText = '회원';
+    if (user.role === 'superadmin' || user.id === 'admin') roleText = '최고관리자';
+    else if (user.role === 'admin') roleText = '부관리자';
+
+    document.getElementById('sidebarRole').textContent = roleText;
+
+    // Only Super Admin can see the settings menu
+    const isSuper = (user.role === 'superadmin' || user.id === 'admin');
+    document.getElementById('menuSettings').style.display = isSuper ? 'flex' : 'none';
 
     switchMenu('dashboard');
     lucide.createIcons();
@@ -477,31 +486,50 @@ function enterDashboard() {
 
 function switchMenu(section) {
     currentTab = section;
+    const user = JSON.parse(localStorage.getItem('activeUser'));
     document.querySelectorAll('.section-view').forEach(s => s.classList.add('hidden'));
-    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    document.getElementById('sec-' + section).classList.remove('hidden');
+    const target = document.getElementById('sec-' + section);
+    if (target) {
+        target.classList.remove('hidden');
 
-    document.querySelectorAll('.nav-item').forEach(node => {
-        if (node.getAttribute('onclick') && node.getAttribute('onclick').includes(section)) node.classList.add('active');
+        // Read-only logic for 'user' role members
+        const headerActions = target.querySelector('.header-actions');
+        if (headerActions) {
+            if (user.role === 'user' && user.id !== 'admin') {
+                headerActions.style.display = 'none'; // Hide add/save buttons
+            } else {
+                headerActions.style.display = 'flex';
+            }
+        }
+    }
+
+    if (section === 'dashboard') renderDashboard();
+    else if (section === 'inventory') renderInventory();
+    else if (section === 'settings') renderSettings();
+    else renderSpreadsheet(section);
+
+    // Sidebar active state
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.getAttribute('onclick').includes(section)) item.classList.add('active');
     });
-
-    renderCurrentTab();
 }
 
 function handleMonthChange(val) {
     currentGlobalMonth = val;
-    renderCurrentTab();
+    // renderCurrentTab(); // This function is now refactored into switchMenu
+    switchMenu(currentTab); // Re-render current tab with new month filter
 }
 
-function renderCurrentTab() {
-    if (currentTab === 'dashboard') renderDashboard();
-    if (currentTab === 'online') renderSpreadsheet('online');
-    if (currentTab === 'ipumgo') renderSpreadsheet('ipumgo');
-    if (currentTab === 'neoart') renderSpreadsheet('neoart');
-    if (currentTab === 'ogasup') renderSpreadsheet('ogasup');
-    if (currentTab === 'inventory') renderInventory();
-    if (currentTab === 'settings') renderSettings();
-}
+// function renderCurrentTab() { // This function is now refactored into switchMenu
+//     if (currentTab === 'dashboard') renderDashboard();
+//     if (currentTab === 'online') renderSpreadsheet('online');
+//     if (currentTab === 'ipumgo') renderSpreadsheet('ipumgo');
+//     if (currentTab === 'neoart') renderSpreadsheet('neoart');
+//     if (currentTab === 'ogasup') renderSpreadsheet('ogasup');
+//     if (currentTab === 'inventory') renderInventory();
+//     if (currentTab === 'settings') renderSettings();
+// }
 
 
 // ========== 4. Rendering logic ==========
@@ -908,30 +936,70 @@ document.addEventListener('keydown', function (e) {
 // ========== 6. Settings ==========
 function renderSettings() {
     const tbody = document.querySelector('#table-approvals tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     getUsers().forEach(u => {
-        if (u.id === 'admin') return;
+        if (u.id === 'admin') return; // Hide root admin
 
-        let btn = u.status === 'pending'
-            ? `<button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="approveUser('${u.id}')">가입 승인</button>`
-            : `<span style="color:var(--primary)">승인됨</span>`;
+        const isPending = u.status === 'pending';
+        const statusHtml = isPending
+            ? '<span style="color:#f59e0b; font-weight:600;">승인 대기</span>'
+            : '<span style="color:#10b981; font-weight:600;">활동중</span>';
+
+        const roleSelect = `
+            <select class="form-control" style="padding:4px; font-size:12px; width:100px;" onchange="updateUserRole('${u.id}', this.value)">
+                <option value="user" ${u.role === 'user' ? 'selected' : ''}>회원(조회)</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>부관리자</option>
+                <option value="superadmin" ${u.role === 'superadmin' ? 'selected' : ''}>최고관리자</option>
+            </select>
+        `;
+
+        const actionBtns = isPending
+            ? `<button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="updateUserStatus('${u.id}', 'approved')">승인</button>
+               <button class="btn btn-danger" style="padding:4px 8px; font-size:12px; background:#ef4444;" onclick="deleteUser('${u.id}')">거절</button>`
+            : `<button class="btn" style="padding:4px 8px; font-size:12px; background:#f3f4f6; color:#ef4444;" onclick="updateUserStatus('${u.id}', 'pending')">승인 취소</button>
+               <button class="btn" style="padding:4px 8px; font-size:12px; background:#fee2e2; color:#b91c1c;" onclick="deleteUser('${u.id}')">계정 삭제</button>`;
 
         tbody.innerHTML += `
             <tr>
                 <td><strong>${u.name}</strong></td>
-                <td>${u.dept}</td><td>${u.position}</td><td>${u.phone}</td>
-                <td>${u.status === 'pending' ? '<span style="color:#f59e0b">대기중</span>' : '<span style="color:#10b981">활성</span>'}</td>
-                <td>${btn}</td>
+                <td>${u.dept} / ${u.position}</td>
+                <td>${u.phone || '-'}</td>
+                <td>${statusHtml}</td>
+                <td>${roleSelect}</td>
+                <td><div style="display:flex; gap:4px;">${actionBtns}</div></td>
             </tr>
         `;
     });
 }
 
-function approveUser(userId) {
+function updateUserStatus(userId, status) {
     const users = getUsers();
     const idx = users.findIndex(u => u.id === userId);
-    if (idx > -1) { users[idx].status = 'approved'; saveUsers(users); renderSettings(); }
+    if (idx > -1) {
+        users[idx].status = status;
+        saveUsers(users);
+        setTimeout(renderSettings, 100);
+    }
+}
+
+function updateUserRole(userId, role) {
+    const users = getUsers();
+    const idx = users.findIndex(u => u.id === userId);
+    if (idx > -1) {
+        users[idx].role = role;
+        saveUsers(users);
+        setTimeout(renderSettings, 100);
+    }
+}
+
+function deleteUser(userId) {
+    if (!confirm('정말로 이 사용자를 삭제(거절)하시겠습니까?')) return;
+    let users = getUsers();
+    users = users.filter(u => u.id !== userId);
+    saveUsers(users);
+    setTimeout(renderSettings, 100);
 }
 
 async function resetAppData() {
