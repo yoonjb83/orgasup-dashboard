@@ -296,39 +296,49 @@ async function saveInventoryToCloud(data) {
 
 async function syncAllFromCloud() {
     if (!db) return false;
-    try {
-        const snapshot = await db.ref('/').once('value');
-        const cloudData = snapshot.val();
-
-        // If the cloud DB is totally empty, return false so local data can bootstrap it
-        if (!cloudData || (!cloudData.sales && !cloudData.users)) {
-            return false;
-        }
-
-        // Firebase는 배열 인덱스가 불규칙하면 객체로 반환할 수 있으므로 강제로 배열로 변환
-        const toArray = (obj) => {
-            if (!obj) return [];
-            if (Array.isArray(obj)) return obj;
-            return Object.values(obj);
-        };
-
-        if (cloudData.sales) localStorage.setItem('ogasup_sales', JSON.stringify(toArray(cloudData.sales)));
-        if (cloudData.users) {
-            localStorage.setItem('ogasup_users', JSON.stringify(toArray(cloudData.users)));
-        }
-        if (cloudData.inventory) localStorage.setItem('ogasup_inventory', JSON.stringify(cloudData.inventory));
-        if (cloudData.details) {
-            for (let schema in cloudData.details) {
-                localStorage.setItem('ogasup_details_' + schema, JSON.stringify(toArray(cloudData.details[schema])));
+    return new Promise((resolve, reject) => {
+        // .once는 가끔 네트워크 상태에 따라 영영 응답이 없는 경우가 있으므로 Timeout 설정
+        let resolved = false;
+        const timeout = setTimeout(() => {
+            if (!resolved) {
+                console.warn("Cloud sync timed out, using local storage fallback.");
+                resolve(false);
             }
-        }
-        // Set a flag so we know we've synced at least once
-        localStorage.setItem('ogasup_cloud_synced', 'true');
-        return true;
-    } catch (e) {
-        console.error("Cloud sync failed:", e);
-        return false;
-    }
+        }, 5000);
+
+        db.ref('/').once('value').then(snapshot => {
+            resolved = true;
+            clearTimeout(timeout);
+            const cloudData = snapshot.val();
+
+            if (!cloudData || (!cloudData.sales && !cloudData.users)) {
+                resolve(false);
+                return;
+            }
+
+            const toArray = (obj) => {
+                if (!obj) return [];
+                if (Array.isArray(obj)) return obj;
+                return Object.values(obj);
+            };
+
+            if (cloudData.sales) localStorage.setItem('ogasup_sales', JSON.stringify(toArray(cloudData.sales)));
+            if (cloudData.users) localStorage.setItem('ogasup_users', JSON.stringify(toArray(cloudData.users)));
+            if (cloudData.inventory) localStorage.setItem('ogasup_inventory', JSON.stringify(cloudData.inventory));
+            if (cloudData.details) {
+                for (let schema in cloudData.details) {
+                    localStorage.setItem('ogasup_details_' + schema, JSON.stringify(toArray(cloudData.details[schema])));
+                }
+            }
+            localStorage.setItem('ogasup_cloud_synced', 'true');
+            resolve(true);
+        }).catch(err => {
+            resolved = true;
+            clearTimeout(timeout);
+            console.error("Cloud sync error:", err);
+            resolve(false);
+        });
+    });
 }
 
 async function migrateLocalDataToCloud() {
@@ -388,20 +398,15 @@ async function handleLogin(e) {
     const id = document.getElementById('loginId').value;
     const pw = document.getElementById('loginPw').value;
 
-    // Force sync users from cloud before login check with timeout
+    // Force sync users from cloud before login check
     if (db) {
         try {
-            // Wait max 3 seconds for cloud sync to avoid blocking login
-            const syncPromise = db.ref('users').once('value');
-            const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 3000));
-            const snapshot = await Promise.race([syncPromise, timeoutPromise]);
-
+            const snapshot = await db.ref('users').once('value');
             if (snapshot && snapshot.val()) {
-                localStorage.setItem('ogasup_users', JSON.stringify(snapshot.val()));
+                const arr = Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val());
+                localStorage.setItem('ogasup_users', JSON.stringify(arr));
             }
-        } catch (e) {
-            console.warn("Cloud login sync failed, using local data", e);
-        }
+        } catch (e) { console.warn("Login sync failed", e); }
     }
 
     const users = getUsers();
@@ -414,13 +419,14 @@ async function handleLogin(e) {
 
     if (user) {
         if (user.status !== 'approved') {
-            alert("최고관리자의 승인을 대기 중입니다. 승인 후 다시 시도해주세요.");
+            alert("입력한 계정은 아직 승인 전입니다. (혹은 승인 정보가 아직 브라우저에 도달하지 않았습니다. 승인 후 10초 뒤 다시 시도해주세요)");
             return;
         }
         localStorage.setItem('activeUser', JSON.stringify(user));
-        enterDashboard();
+        // 로그인 성공 시 전체 데이터 다시 한번 강제 동기화 시도
+        syncAllFromCloud().then(() => enterDashboard());
     } else {
-        alert("아이디 또는 비밀번호가 일치하지 않습니다. (가입 승인 여부도 확인해주세요)");
+        alert("아이디 또는 비밀번호가 일치하지 않습니다.");
     }
 }
 
@@ -1020,10 +1026,8 @@ async function resetAppData() {
         localStorage.removeItem('ogasup_app_version'); // Also remove version on full reset
         localStorage.removeItem('activeUser');
 
-        // Clear Firebase data
-        if (db) {
-            await db.ref('/').remove();
-        }
+        // Note: We intentionally DO NOT remove Firebase data anymore at the user's request.
+        // This button now only resets the LOCAL cache and forces a pull from Cloud.
 
         window.location.reload();
     }
