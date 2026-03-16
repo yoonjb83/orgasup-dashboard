@@ -962,6 +962,7 @@ function saveCurrentEntrySheet(schema) {
             type: tr.querySelector('[data-col="type"]').value,
             product: tr.querySelector('[data-col="product"]').value,
             qty: Number(unformat(tr.querySelector('[data-col="qty"]').value)) || 0,
+            unitPrice: Number(unformat(tr.querySelector('[data-col="unitPrice"]').value)) || 0,
             price: Number(unformat(tr.querySelector('[data-col="price"]').value)) || 0,
             paid: Number(unformat(tr.querySelector('[data-col="paid"]').value)) || 0,
             tax: tr.querySelector('[data-col="tax"]').value
