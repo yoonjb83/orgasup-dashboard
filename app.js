@@ -280,7 +280,12 @@ async function saveDetails(schema, data) {
     if (db) await db.ref('details/' + schema).set(data);
 }
 
-function getUsers() { return JSON.parse(localStorage.getItem('ogasup_users')) || []; }
+function getUsers() {
+    try {
+        const data = localStorage.getItem('ogasup_users');
+        return data ? JSON.parse(data) : [];
+    } catch (e) { return []; }
+}
 
 async function saveUsers(data) {
     localStorage.setItem('ogasup_users', JSON.stringify(data));
@@ -398,35 +403,42 @@ async function handleLogin(e) {
     const id = document.getElementById('loginId').value;
     const pw = document.getElementById('loginPw').value;
 
-    // Force sync users from cloud before login check
-    if (db) {
+    console.log("Login attempt:", id);
+
+    // 1. 우선 로컬에 있는 정보로 즉시 시도 (오프라인/지연 대응)
+    let users = getUsers();
+    let user = users.find(u => u.id === id && u.password === pw);
+
+    // 2. 관리자 비상 로그인 (서버 연결 실패시 대비)
+    if (!user && id === 'admin' && pw === '1234') {
+        user = { id: 'admin', password: '1234', name: '최고관리자', role: 'superadmin', status: 'approved' };
+    }
+
+    // 3. 만약 로컬에 없으면 서버에서 강제로 다시 긁어옴 (동기화 실패 대비)
+    if (!user && db) {
         try {
             const snapshot = await db.ref('users').once('value');
             if (snapshot && snapshot.val()) {
                 const arr = Array.isArray(snapshot.val()) ? snapshot.val() : Object.values(snapshot.val());
                 localStorage.setItem('ogasup_users', JSON.stringify(arr));
+                users = arr;
+                user = users.find(u => u.id === id && u.password === pw);
             }
-        } catch (e) { console.warn("Login sync failed", e); }
-    }
-
-    const users = getUsers();
-    let user = users.find(u => u.id === id && u.password === pw);
-
-    // Admin Fallback (Emergency)
-    if (!user && id === 'admin' && pw === '1234') {
-        user = { id: 'admin', password: '1234', name: '최고관리자', role: 'superadmin', status: 'approved' };
+        } catch (err) { console.error("Login server sync error:", err); }
     }
 
     if (user) {
         if (user.status !== 'approved') {
-            alert("입력한 계정은 아직 승인 전입니다. (혹은 승인 정보가 아직 브라우저에 도달하지 않았습니다. 승인 후 10초 뒤 다시 시도해주세요)");
+            alert("입력하신 계정은 아직 승인 전입니다. 최고관리자에게 승인을 요청해 주세요.");
             return;
         }
         localStorage.setItem('activeUser', JSON.stringify(user));
-        // 로그인 성공 시 전체 데이터 다시 한번 강제 동기화 시도
-        syncAllFromCloud().then(() => enterDashboard());
+
+        // 로그인 성공 후 배경에서 데이터 동기화 시도 (UI는 즉시 진입)
+        enterDashboard();
+        syncAllFromCloud();
     } else {
-        alert("아이디 또는 비밀번호가 일치하지 않습니다.");
+        alert("아이디 또는 비밀번호가 일치하지 않습니다. (관리자 승인 여부도 확인해주세요)");
     }
 }
 
@@ -1035,42 +1047,42 @@ async function resetAppData() {
 
 // Initial Boot logic
 window.onload = async () => {
-    // 1. 실시간 동기화 리스너 먼저 가동
+    // 1. 실시간 동기화 리스너 개방
     initRealtimeSync();
 
-    // 2. 초기 데이터 원격 동기화 (Promise로 확실히 기다림)
-    try {
-        await syncAllFromCloud();
-    } catch (e) {
-        console.error("Cloud 초기 동기화 실패:", e);
-    }
-
-    // 3. 로컬 저장소 확인 및 데모 데이터 보충 (비어있을 경우에만)
+    // 2. 로컬 저장소 기초 데이터 확보 (클라우드 접속 전 최소한의 틀)
     initData(false);
 
-    // 4. 클라우드 백업 체크
-    try {
-        await migrateLocalDataToCloud();
-    } catch (e) { console.error("Cloud 백업 실패:", e); }
+    // 3. 클라우드 데이터 비동기 병합 (성공하면 덮어쓰고, 실패해도 로컬 유지)
+    syncAllFromCloud().then(synced => {
+        if (synced) {
+            console.log("Cloud sync completed on boot.");
+            if (localStorage.getItem('activeUser')) renderDashboard(); // 데이터가 바뀌었을 수 있으므로 갱신
+        }
+    });
 
-    // 5. 기본 날짜 설정
+    // 4. 날짜 및 UI 설정
     currentGlobalMonth = '2026-03';
     const filter = document.getElementById('globalMonthFilter');
     if (filter) filter.value = '2026-03';
 
-    // 6. 로그인 세션 및 승인 상태 최종 검증
+    // 5. 로그인 유지 확인
     const savedUser = localStorage.getItem('activeUser');
     if (savedUser) {
-        const user = JSON.parse(savedUser);
-        const users = getUsers();
-        const latest = users.find(u => u.id === user.id);
+        try {
+            const user = JSON.parse(savedUser);
+            const users = getUsers();
+            const latest = users.find(u => u.id === user.id);
 
-        if (user.id === 'admin' || (latest && latest.status === 'approved')) {
-            if (latest) localStorage.setItem('activeUser', JSON.stringify(latest));
-            document.getElementById('authContainer').classList.add('hidden');
-            document.getElementById('appContainer').classList.remove('hidden');
-            enterDashboard();
-        } else {
+            // 최고관리자이거나 승인된 유저면 대시보드 진입
+            if (user.id === 'admin' || (latest && latest.status === 'approved')) {
+                if (latest) localStorage.setItem('activeUser', JSON.stringify(latest));
+                enterDashboard();
+            } else {
+                localStorage.removeItem('activeUser');
+                switchMenu('dashboard');
+            }
+        } catch (e) {
             localStorage.removeItem('activeUser');
             switchMenu('dashboard');
         }
