@@ -209,6 +209,8 @@
                                 <div class="kpi-icon offline"><i data-lucide="store"></i></div>
                             </div>
                             <div class="kpi-value" id="kpi-offline">₩0</div>
+                            <div style="font-size:13px; color:var(--text-muted); margin-top:8px;"
+                                id="kpi-offline-detail"></div>
                         </div>
                     </div>
 
@@ -224,12 +226,32 @@
                         </div>
                         <div class="kpi-card" style="background-color: var(--bg-surface);">
                             <div class="kpi-header">
-                                <span>오프라인 판매 총계</span>
-                                <div class="kpi-icon offline"><i data-lucide="shopping-bag"></i></div>
+                                <span>오프라인 지원 vs 판매 비율</span>
+                                <div class="kpi-icon offline"><i data-lucide="bar-chart-2"></i></div>
                             </div>
-                            <div class="kpi-value" id="kpi-sales-detail">₩0</div>
-                            <div style="font-size:13px; color:var(--text-muted); margin-top:8px;" id="kpi-sales-qty">판매
-                                수량: 0개</div>
+                            <div class="ratio-container">
+                                <div class="ratio-progress">
+                                    <div id="ratio-support-bar" class="ratio-segment support"></div>
+                                    <div id="ratio-sales-bar" class="ratio-segment sales"></div>
+                                </div>
+                                <div class="ratio-info">
+                                    <div class="ratio-item">
+                                        <span class="dot support"></span>
+                                        <span class="label">지원:</span>
+                                        <span id="ratio-support-pct" class="value">0%</span>
+                                    </div>
+                                    <div class="ratio-item">
+                                        <span class="dot sales"></span>
+                                        <span class="label">판매:</span>
+                                        <span id="ratio-sales-pct" class="value">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ratio-footer"
+                                style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted);">
+                                <span id="kpi-support-qty-sub">지원 수량: 0개</span>
+                                <span id="kpi-sales-qty-sub">판매 수량: 0개</span>
+                            </div>
                         </div>
                     </div>
 

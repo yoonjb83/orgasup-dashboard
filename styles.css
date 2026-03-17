@@ -645,3 +645,69 @@ tbody tr:hover {
     color: #9333ea;
     font-weight: 600;
 }
+
+/* Ratio Graph Styles */
+.ratio-container {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ratio-progress {
+    height: 12px;
+    width: 100%;
+    background-color: var(--bg-base);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+}
+
+.ratio-segment {
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+.ratio-segment.support {
+    background-color: var(--primary);
+}
+
+.ratio-segment.sales {
+    background-color: var(--secondary);
+}
+
+.ratio-info {
+    display: flex;
+    justify-content: space-around;
+    gap: 16px;
+}
+
+.ratio-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.ratio-item .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.ratio-item .dot.support {
+    background-color: var(--primary);
+}
+
+.ratio-item .dot.sales {
+    background-color: var(--secondary);
+}
+
+.ratio-item .label {
+    color: var(--text-muted);
+}
+
+.ratio-item .value {
+    font-weight: 700;
+    color: var(--text-main);
+}

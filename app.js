@@ -694,17 +694,27 @@ function renderDashboard() {
     });
 
     // 오프라인(아이품고, 네오아트, 오가숲) 상세 합산 (KPI용)
+    let tIpumgo = 0, tNeoart = 0, tOgasup = 0;
+
+    fIpumgo.forEach(d => {
+        if (d.type !== '지원') tIpumgo += toNum(d.price);
+        else { supportAmt += toNum(d.price); supportQty += toNum(d.qty); }
+    });
+    fNeoart.forEach(d => {
+        if (d.type !== '지원') tNeoart += toNum(d.price);
+        else { supportAmt += toNum(d.price); supportQty += toNum(d.qty); }
+    });
+    fOgasup.forEach(d => {
+        if (d.type !== '지원') tOgasup += toNum(d.price);
+        else { supportAmt += toNum(d.price); supportQty += toNum(d.qty); }
+    });
+
+    saleAmt = tIpumgo + tNeoart + tOgasup;
+    tOffline = saleAmt;
+
+    // 판매 수량 합산
     fOffline.forEach(d => {
-        const amt = toNum(d.price);
-        const qty = toNum(d.qty);
-        if (d.type === '지원') {
-            supportAmt += amt;
-            supportQty += qty;
-        } else {
-            saleAmt += amt;
-            saleQty += qty;
-            tOffline += amt;
-        }
+        if (d.type !== '지원') saleQty += toNum(d.qty);
     });
 
     // 3. UI 갱신 (상단 카드)
@@ -712,10 +722,23 @@ function renderDashboard() {
     document.getElementById('kpi-online').textContent = formatCurrency(tOnline);
     document.getElementById('kpi-offline').textContent = formatCurrency(tOffline);
     document.getElementById('kpi-online-detail').textContent = `스토어: ${formatCurrency(smartstore)} / 쿠팡: ${formatCurrency(coupang)} / 자사몰: ${formatCurrency(mall)}`;
+    document.getElementById('kpi-offline-detail').textContent = `아이품고: ${formatCurrency(tIpumgo)} / 네오아트: ${formatCurrency(tNeoart)} / 오가숲(직접): ${formatCurrency(tOgasup)}`;
+
     document.getElementById('kpi-support').textContent = formatCurrency(supportAmt);
     document.getElementById('kpi-support-qty').textContent = `지원 수량: ${supportQty.toLocaleString()}개`;
-    document.getElementById('kpi-sales-detail').textContent = formatCurrency(saleAmt);
-    document.getElementById('kpi-sales-qty').textContent = `판매 수량: ${saleQty.toLocaleString()}개`;
+
+    // 지원 vs 판매 비율 업데이트
+    const totalOffVal = supportAmt + saleAmt;
+    const supportPct = totalOffVal > 0 ? Math.round((supportAmt / totalOffVal) * 100) : 0;
+    const salesPct = totalOffVal > 0 ? 100 - supportPct : 0;
+
+    document.getElementById('ratio-support-bar').style.width = supportPct + '%';
+    document.getElementById('ratio-sales-bar').style.width = salesPct + '%';
+    document.getElementById('ratio-support-pct').textContent = supportPct + '%';
+    document.getElementById('ratio-sales-pct').textContent = salesPct + '%';
+
+    document.getElementById('kpi-support-qty-sub').textContent = `지원 수량: ${supportQty.toLocaleString()}개`;
+    document.getElementById('kpi-sales-qty-sub').textContent = `판매 수량: ${saleQty.toLocaleString()}개`;
 
     // 4. 차트용 데이터 계산 (전체 기간 트렌드)
     const trendMonthly = {};
