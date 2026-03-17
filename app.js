@@ -820,7 +820,7 @@ function appendDetailRow(schema, tbody, data) {
     const tr = document.createElement('tr');
     tr.dataset.id = data.id || generateId();
 
-    const types = ['판매', '지원', '기타'];
+    const types = ['판매', '지원', '체험단', '기타'];
     const typeOptions = types.map(t => `<option value="${t}" ${data.type === t ? 'selected' : ''}>${t}</option>`).join('');
 
     const products = ['입오버', '입오버 2P', '중형', '청결제'];
@@ -869,9 +869,10 @@ function updateTypeColor(el) {
     const cell = el.closest('td');
     if (!cell) return;
 
-    cell.classList.remove('type-sale', 'type-support');
+    cell.classList.remove('type-sale', 'type-support', 'type-exp');
     if (val === '판매') cell.classList.add('type-sale');
     if (val === '지원') cell.classList.add('type-support');
+    if (val === '체험단') cell.classList.add('type-exp');
 }
 
 function renderMiniDashboard(schema) {
@@ -881,10 +882,10 @@ function renderMiniDashboard(schema) {
     const allData = getDetails(schema);
     const data = getFilteredData(allData);
 
-    const totalAmountSales = data.filter(d => d.type === '판매').reduce((sum, d) => sum + (Number(d.price) || 0), 0);
+    const totalAmountSales = data.filter(d => d.type !== '지원').reduce((sum, d) => sum + (Number(d.price) || 0), 0);
     const totalAmountSupport = data.filter(d => d.type === '지원').reduce((sum, d) => sum + (Number(d.price) || 0), 0);
-    const totalQtySale = data.filter(d => d.type === '판매').reduce((sum, d) => sum + (Number(d.qty) || 0), 0);
-    const totalSaleCount = data.filter(d => d.type === '판매').length;
+    const totalQtySale = data.filter(d => d.type !== '지원').reduce((sum, d) => sum + (Number(d.qty) || 0), 0);
+    const totalSaleCount = data.filter(d => d.type !== '지원').length;
     const totalQtySupport = data.filter(d => d.type === '지원').reduce((sum, d) => sum + (Number(d.qty) || 0), 0);
 
     // Product breakdown
