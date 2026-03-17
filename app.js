@@ -431,6 +431,10 @@ function calculateRowAmount(el) {
     const tr = el.closest('tr');
     if (!tr) return;
 
+    // 수량이나 단가를 수정했을 때만 금액을 자동 계산합니다.
+    const col = el.dataset.col;
+    if (col !== 'qty' && col !== 'unitPrice') return;
+
     const qtyInput = tr.querySelector('[data-col="qty"]');
     const unitPriceInput = tr.querySelector('[data-col="unitPrice"]');
     const priceInput = tr.querySelector('[data-col="price"]');
@@ -438,19 +442,29 @@ function calculateRowAmount(el) {
     if (qtyInput && unitPriceInput && priceInput) {
         const qty = Number(unformat(qtyInput.value)) || 0;
         const unitPrice = Number(unformat(unitPriceInput.value)) || 0;
-        const total = qty * unitPrice;
 
-        priceInput.value = total.toLocaleString();
+        // 수량과 단가 중 하나라도 입력되어 있을 때만 덮어씌웁니다.
+        if (qty !== 0 || unitPrice !== 0) {
+            const total = qty * unitPrice;
+            priceInput.value = total.toLocaleString();
+        }
     }
 }
 
 function formatNumberInput(el) {
-    let val = unformat(el.value);
-    if (!isNaN(val) && val !== '') {
-        el.value = Number(val).toLocaleString();
+    let raw = unformat(el.value);
+    if (raw === '-') return; // 마이너스 입력 중일 때는 유지
+
+    let val = Number(raw);
+    if (!isNaN(val) && raw !== '') {
+        el.value = val.toLocaleString();
     }
-    // 포맷팅 후에도 자동 계산 트리거
-    calculateRowAmount(el);
+
+    // 수량(qty)이나 단가(unitPrice)일 때만 자동 합계 계산 실행
+    const col = el.dataset.col;
+    if (col === 'qty' || col === 'unitPrice') {
+        calculateRowAmount(el);
+    }
 }
 function generateId() { return Date.now() + Math.floor(Math.random() * 1000); }
 
@@ -656,19 +670,27 @@ function renderDashboard() {
 
     const toNum = (val) => {
         if (val === null || val === undefined || val === '') return 0;
-        // 콤마(,)가 포함된 문자열일 경우 제거 후 숫자로 변환
-        const n = Number(String(val).replace(/,/g, ''));
+        // 콤마 제거 및 공백 제거 후 숫자로 정밀 변환
+        const s = String(val).replace(/,/g, '').trim();
+        const n = Number(s);
         return isNaN(n) ? 0 : n;
     };
 
     // 온라인 매출 상세 합산 (KPI용)
     fOnline.forEach(d => {
         const amt = toNum(d.price);
-        tOnline += amt;
-        const branch = (d.branch || '').toLowerCase();
-        if (branch.includes('스마트') || branch.includes('naver')) smartstore += amt;
-        else if (branch.includes('쿠팡') || branch.includes('coupang')) coupang += amt;
-        else mall += amt;
+        const qty = toNum(d.qty);
+        // 온라인도 '지원' 항목은 제외하고 합산 (마이너스 반영)
+        if (d.type !== '지원') {
+            tOnline += amt;
+            const branch = (d.branch || '').toLowerCase();
+            if (branch.includes('스마트') || branch.includes('naver')) smartstore += amt;
+            else if (branch.includes('쿠팡') || branch.includes('coupang')) coupang += amt;
+            else mall += amt;
+        } else {
+            supportAmt += amt;
+            supportQty += qty;
+        }
     });
 
     // 오프라인(아이품고, 네오아트, 오가숲) 상세 합산 (KPI용)
