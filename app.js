@@ -701,7 +701,8 @@ function renderDashboard() {
 
     const processTrend = (arr, key) => {
         arr.forEach(d => {
-            if (d.type === '판매' || !d.type) {
+            // '지원'이 아닌 모든 항목(판매, 체험단, 기타 등)을 매출로 집계 (음수 포함)
+            if (d.type !== '지원') {
                 const dateRaw = String(d.date || '').replace(/[^0-9]/g, '');
                 if (dateRaw.length >= 6) {
                     const m = dateRaw.substring(0, 4) + '-' + dateRaw.substring(4, 6);
